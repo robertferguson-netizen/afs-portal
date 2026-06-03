@@ -431,6 +431,54 @@ const STAFF = {
   workshop:  ['Robert Ferguson','David Armit','Stuart Finlayson','Workshop Assistants']
 };
 
+// ── SHARED DATABASE ────────────────────────────────────────────────────────
+const DB_URL = 'https://script.google.com/macros/s/AKfycby7neSjgD0NlNuLQHw38-WP02Nr5EE7pHy7dftXtnNB2oIb3HiXOPl0VG004za4o0d-/exec';
+
+async function dbGetBookings() {
+  try {
+    const res = await fetch(DB_URL, { method: 'GET' });
+    const data = await res.json();
+    if (data.success) {
+      // Also cache locally as fallback
+      localStorage.setItem('afs_bookings_v3', JSON.stringify(data.bookings));
+      return data.bookings;
+    }
+  } catch(e) {
+    console.warn('DB read failed, using local cache:', e);
+  }
+  return JSON.parse(localStorage.getItem('afs_bookings_v3') || '[]');
+}
+
+async function dbSaveBooking(booking) {
+  // Always save locally immediately
+  const bookings = JSON.parse(localStorage.getItem('afs_bookings_v3') || '[]');
+  const idx = bookings.findIndex(b => b.ref === booking.ref);
+  if (idx >= 0) bookings[idx] = booking; else bookings.push(booking);
+  localStorage.setItem('afs_bookings_v3', JSON.stringify(bookings));
+  // Then sync to shared DB
+  try {
+    await fetch(DB_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'save', booking })
+    });
+  } catch(e) { console.warn('DB write failed:', e); }
+}
+
+async function dbDeleteBooking(ref) {
+  // Delete locally
+  const bookings = JSON.parse(localStorage.getItem('afs_bookings_v3') || '[]').filter(b => b.ref !== ref);
+  localStorage.setItem('afs_bookings_v3', JSON.stringify(bookings));
+  // Delete from shared DB
+  try {
+    await fetch(DB_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'delete', ref })
+    });
+  } catch(e) { console.warn('DB delete failed:', e); }
+}
+
 const JOB_TYPES = [
   {id:'delivery',   label:'Vehicle Delivery',     icon:'🚚', costType:'mileage'},
   {id:'collection', label:'Vehicle Collection',   icon:'🚗', costType:'mileage'},
@@ -557,23 +605,35 @@ function buildNav() {
   showTab(tabs[0].id);
 }
 
-function showTab(id) {
+async function showTab(id) {
   activeTab = id;
   document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
   const navEl = document.getElementById('nav-'+id);
   if (navEl) navEl.classList.add('active');
   const pc = document.getElementById('page-content');
   pc.innerHTML = '';
+
   if (currentPortal === 'logistics') {
-    if (id==='new') pc.appendChild(renderNewBooking());
-    if (id==='my-bookings') pc.appendChild(renderMyBookings());
-    if (id==='analytics') pc.appendChild(renderAnalytics('logistics'));
-    if (id==='settings') pc.appendChild(renderSettings());
+    if (id==='new') { pc.appendChild(renderNewBooking()); return; }
+    if (id==='settings') { pc.appendChild(renderSettings()); return; }
   } else {
-    if (id==='inbox') pc.appendChild(renderInbox());
-    if (id==='all') pc.appendChild(renderAllBookings());
-    if (id==='analytics') pc.appendChild(renderAnalytics('workshop'));
-    if (id==='settings') pc.appendChild(renderSettings());
+    if (id==='settings') { pc.appendChild(renderSettings()); return; }
+  }
+
+  // Show loading spinner for data pages
+  pc.innerHTML = '<div style="text-align:center;padding:60px;color:var(--muted);font-size:14px;"><span class="spin" style="border-color:var(--border-light);border-top-color:var(--navy);width:24px;height:24px;"></span><div style="margin-top:12px;">Loading bookings...</div></div>';
+
+  // Load fresh data from shared DB
+  const bookings = await dbGetBookings();
+
+  pc.innerHTML = '';
+  if (currentPortal === 'logistics') {
+    if (id==='my-bookings') pc.appendChild(renderMyBookings(bookings));
+    if (id==='analytics') pc.appendChild(renderAnalytics('logistics', bookings));
+  } else {
+    if (id==='inbox') pc.appendChild(renderInbox(bookings));
+    if (id==='all') pc.appendChild(renderAllBookings(bookings));
+    if (id==='analytics') pc.appendChild(renderAnalytics('workshop', bookings));
   }
 }
 
@@ -939,9 +999,7 @@ function submitNewBooking() {
     deviceLoc: document.getElementById('vf-device-loc')?.value || '',
   };
 
-  const bookings = getBookings();
-  bookings.push(booking);
-  saveBookings(bookings);
+  await dbSaveBooking(booking);
 
   // Fire Power Automate submission email
   fireSubmissionEmail(booking);
@@ -990,8 +1048,8 @@ function resetNewBooking() {
 // ═══════════════════════════════════════════════
 // MY BOOKINGS (LOGISTICS)
 // ═══════════════════════════════════════════════
-function renderMyBookings() {
-  const bookings = getBookings().filter(b=>b.raisedBy===currentUser).reverse();
+function renderMyBookings(bookings) {
+  bookings = (bookings||[]).filter(b=>b.raisedBy===currentUser).reverse();
   const div = document.createElement('div');
   div.innerHTML = `
     <div class="page-header">
@@ -1015,11 +1073,12 @@ function renderMyBookings() {
   return div;
 }
 
-function filterMyBookings() {
+async function filterMyBookings() {
   const sf = document.getElementById('mf-status')?.value;
   const tf = document.getElementById('mf-type')?.value;
   const q  = document.getElementById('mf-search')?.value?.toLowerCase();
-  const bookings = getBookings().filter(b=>{
+  const all = await dbGetBookings();
+  const bookings = all.filter(b=>{
     if (b.raisedBy !== currentUser) return false;
     if (sf && b.status !== sf) return false;
     if (tf && b.type !== tf) return false;
@@ -1032,8 +1091,8 @@ function filterMyBookings() {
 // ═══════════════════════════════════════════════
 // WORKSHOP INBOX
 // ═══════════════════════════════════════════════
-function renderInbox() {
-  const bookings = getBookings().filter(b=>b.status==='Pending').reverse();
+function renderInbox(bookings) {
+  bookings = (bookings||[]).filter(b=>b.status==='Pending').reverse();
   const div = document.createElement('div');
   div.innerHTML = `
     <div class="page-header">
@@ -1046,8 +1105,8 @@ function renderInbox() {
   return div;
 }
 
-function renderAllBookings() {
-  const bookings = getBookings().reverse();
+function renderAllBookings(bookings) {
+  bookings = (bookings||[]).reverse();
   const div = document.createElement('div');
   div.innerHTML = `
     <div class="page-header">
@@ -1079,12 +1138,13 @@ function renderAllBookings() {
   return div;
 }
 
-function filterAll() {
+async function filterAll() {
   const sf = document.getElementById('af-status')?.value;
   const tf = document.getElementById('af-type')?.value;
   const cf = document.getElementById('af-charge')?.value;
   const q  = document.getElementById('af-search')?.value?.toLowerCase();
-  const bookings = getBookings().filter(b=>{
+  const all = await dbGetBookings();
+  const bookings = all.filter(b=>{
     if (sf && b.status !== sf) return false;
     if (tf && b.type !== tf) return false;
     if (cf && b.chargeTo !== cf) return false;
@@ -1206,8 +1266,7 @@ function openBookingDetail(ref) {
 
 function deleteBooking(ref) {
   if (!confirm(`Permanently delete booking ${ref}?\n\nThis cannot be undone.`)) return;
-  const bookings = getBookings().filter(x => x.ref !== ref);
-  saveBookings(bookings);
+  await dbDeleteBooking(ref);
   closeModal();
   showTab(activeTab);
 }
@@ -1223,7 +1282,7 @@ function confirmCancel(ref) {
 
 function closeModal() { document.getElementById('detail-overlay').classList.remove('show'); }
 
-function updateBookingStatus(ref, status) {
+async function updateBookingStatus(ref, status) {
   saveWorkshopNotes(ref, false);
   const bookings = getBookings();
   const b = bookings.find(x=>x.ref===ref);
@@ -1233,27 +1292,27 @@ function updateBookingStatus(ref, status) {
   if (status==='Completed') { b.completedAt=ts(); }
   if (status==='Declined') { b.declinedAt=ts(); }
   if (status==='Cancelled') { b.cancelledAt=ts(); b.cancelledBy=currentUser; }
-  saveBookings(bookings);
+  await dbSaveBooking(b);
   // Fire Power Automate status update email to raiser
   fireStatusEmail(b, status);
   closeModal();
   showTab(activeTab);
 }
 
-function saveWorkshopNotes(ref, showFeedback=true) {
+async function saveWorkshopNotes(ref, showFeedback=true) {
   const notes = document.getElementById('ws-notes')?.value;
   if (notes === undefined) return;
   const bookings = getBookings();
   const b = bookings.find(x=>x.ref===ref);
-  if (b) { b.workshopNotes = notes; saveBookings(bookings); }
+  if (b) { b.workshopNotes = notes; saveBookings(bookings); await dbSaveBooking(b); }
   if (showFeedback) { closeModal(); showTab(activeTab); }
 }
 
 // ═══════════════════════════════════════════════
 // ANALYTICS
 // ═══════════════════════════════════════════════
-function renderAnalytics(side) {
-  const bookings = getBookings();
+function renderAnalytics(side, bookings) {
+  bookings = bookings||[];
   const div = document.createElement('div');
 
   // Stats
