@@ -859,15 +859,14 @@ async function lookupDistance() {
     const toD   = await toR.json();
     if (fromD.status !== 200 || toD.status !== 200) throw new Error('Invalid postcode');
     const miles = haversine(fromD.result.latitude, fromD.result.longitude, toD.result.latitude, toD.result.longitude);
-    calcMiles = Math.round(miles);
+    const oneway = Math.round(miles);
+    calcMiles = oneway * 2; // return journey
     const cost = calcMileageCost(calcMiles);
     calcCost = cost;
     const extra = Math.max(0, calcMiles - FREE_MILES);
-    const breakdown = calcMiles <= FREE_MILES
-      ? `${calcMiles} miles — within callout (first ${FREE_MILES} miles included)`
-      : `${calcMiles} miles — £${CALLOUT} callout + ${extra} miles × £${PER_MILE} = ${formatCost(cost)}`;
-    res.innerHTML = `<div><div style="font-weight:700;font-size:14px;color:var(--navy);">${calcMiles} miles (straight-line estimate)</div><div class="mileage-breakdown">${breakdown}</div></div><div style="font-family:var(--font-display);font-size:24px;font-weight:800;color:var(--accent);">${formatCost(cost)}</div>`;
-    showCostPanel(formatCost(cost), `${calcMiles} miles — postcodes ${from} → ${to}`);
+    const breakdown = `${oneway} miles each way × 2 (return) = ${calcMiles} miles — £${CALLOUT} callout + ${Math.max(0,calcMiles-FREE_MILES)} miles × £${PER_MILE} = ${formatCost(cost)}`;
+    res.innerHTML = `<div><div style="font-weight:700;font-size:14px;color:var(--navy);">${oneway} miles each way (${calcMiles} miles return)</div><div class="mileage-breakdown">${breakdown}</div></div><div style="font-family:var(--font-display);font-size:24px;font-weight:800;color:var(--accent);">${formatCost(cost)}</div>`;
+    showCostPanel(formatCost(cost), `${oneway} mi each way × 2 = ${calcMiles} mi return — postcodes ${from} → ${to}`);
     document.getElementById('manual-miles').value = '';
   } catch(e) {
     res.innerHTML = `<span style="color:var(--red);">⚠ Couldn't look up those postcodes. Please enter miles manually below.</span>`;
@@ -883,15 +882,14 @@ function haversine(lat1,lon1,lat2,lon2) {
 function onManualMiles() {
   const m = parseFloat(document.getElementById('manual-miles').value);
   if (isNaN(m) || m < 0) return;
-  calcMiles = Math.round(m);
+  const oneway = Math.round(m);
+  calcMiles = oneway * 2; // return journey
   calcCost = calcMileageCost(calcMiles);
   const extra = Math.max(0, calcMiles - FREE_MILES);
-  const basis = calcMiles <= FREE_MILES
-    ? `${calcMiles} miles — within callout`
-    : `${calcMiles} miles — £${CALLOUT} + ${extra}mi × £${PER_MILE}`;
+  const basis = `${oneway} miles × 2 (return) = ${calcMiles} miles total`;
   showCostPanel(formatCost(calcCost), basis);
   const res = document.getElementById('mileage-result');
-  if (res) { res.className='mileage-result show'; res.innerHTML=`<div><div style="font-weight:700;">Manual entry: ${calcMiles} miles</div></div><div style="font-family:var(--font-display);font-size:24px;font-weight:800;color:var(--accent);">${formatCost(calcCost)}</div>`; }
+  if (res) { res.className='mileage-result show'; res.innerHTML=`<div><div style="font-weight:700;">Manual entry: ${oneway} miles each way (${calcMiles} miles return)</div></div><div style="font-family:var(--font-display);font-size:24px;font-weight:800;color:var(--accent);">${formatCost(calcCost)}</div>`; }
 }
 
 function submitNewBooking() {
@@ -1166,8 +1164,9 @@ function openBookingDetail(ref) {
       ${b.status==='Accepted'?`<button class="btn btn-navy btn-sm" onclick="updateBookingStatus('${b.ref}','Completed')">Mark Completed</button>`:''}
       ${(b.status==='Accepted'||b.status==='Pending')?`<button class="btn btn-sm" style="background:#f0f0f5;color:#555;border:1px solid #ccc;" onclick="confirmCancel('${b.ref}')">Cancel booking</button>`:''}
       <button class="btn btn-ghost btn-sm" onclick="saveWorkshopNotes('${b.ref}')">Save notes</button>
+      <button class="btn btn-sm" style="background:#fff0f0;color:#cc0000;border:1px solid #ffcccc;margin-left:auto;" onclick="deleteBooking('${b.ref}')">🗑 Delete</button>
     </div>
-  ` : `<div style="margin-top:12px;"><span class="tag ${STATUS_TAG_CLASS[b.status]||'tag-pending'}" style="font-size:12px;">${b.status}</span>${b.workshopNotes?`<div style="margin-top:10px;font-size:12px;color:var(--muted);background:var(--offwhite);border-radius:6px;padding:10px;"><strong>Workshop note:</strong> ${b.workshopNotes}</div>`:''}${(b.status==='Pending'||b.status==='Accepted')?`<div style="margin-top:12px;"><button class="btn btn-sm" style="background:#f0f0f5;color:#555;border:1px solid #ccc;" onclick="confirmCancel('${b.ref}')">Cancel this request</button></div>`:''}</div>`;
+  ` : `<div style="margin-top:12px;"><span class="tag ${STATUS_TAG_CLASS[b.status]||'tag-pending'}" style="font-size:12px;">${b.status}</span>${b.workshopNotes?`<div style="margin-top:10px;font-size:12px;color:var(--muted);background:var(--offwhite);border-radius:6px;padding:10px;"><strong>Workshop note:</strong> ${b.workshopNotes}</div>`:''}${(b.status==='Pending'||b.status==='Accepted')?`<div style="margin-top:12px;"><button class="btn btn-sm" style="background:#f0f0f5;color:#555;border:1px solid #ccc;" onclick="confirmCancel('${b.ref}')">Cancel this request</button></div>`:''}<div style="margin-top:8px;"><button class="btn btn-sm" style="background:#fff0f0;color:#cc0000;border:1px solid #ffcccc;" onclick="deleteBooking('${b.ref}')">🗑 Delete booking</button></div></div>`;
 
   document.getElementById('modal-body').innerHTML = `
     <div class="timeline" style="margin-bottom:20px;">
@@ -1203,6 +1202,14 @@ function openBookingDetail(ref) {
     ${workshopActions}
   `;
   document.getElementById('detail-overlay').classList.add('show');
+}
+
+function deleteBooking(ref) {
+  if (!confirm(`Permanently delete booking ${ref}?\n\nThis cannot be undone.`)) return;
+  const bookings = getBookings().filter(x => x.ref !== ref);
+  saveBookings(bookings);
+  closeModal();
+  showTab(activeTab);
 }
 
 function confirmCancel(ref) {
@@ -1255,18 +1262,18 @@ function renderAnalytics(side) {
   const completed = bookings.filter(b=>b.status==='Completed').length;
   const now = new Date();
   const monthStart = new Date(now.getFullYear(),now.getMonth(),1);
-  const monthCost = bookings.filter(b=>new Date(b.submittedAt?.split(', ')[0]?.split('/').reverse().join('-')||0)>=monthStart).reduce((s,b)=>s+parseFloat(b.cost||0),0);
+  const monthCost = bookings.filter(b=>new Date(b.submittedAt?.split(', ')[0]?.split('/').reverse().join('-')||0)>=monthStart&&b.status!=='Cancelled'&&b.status!=='Declined').reduce((s,b)=>s+parseFloat(b.cost||0),0);
 
   // Volume by type
   const typeCount = {};
   const typeCost = {};
   JOB_TYPES.forEach(j=>{ typeCount[j.id]=0; typeCost[j.id]=0; });
-  bookings.forEach(b=>{ typeCount[b.type]=(typeCount[b.type]||0)+1; typeCost[b.type]=(typeCost[b.type]||0)+parseFloat(b.cost||0); });
+  bookings.forEach(b=>{ typeCount[b.type]=(typeCount[b.type]||0)+1; if(b.status!=='Cancelled'&&b.status!=='Declined') typeCost[b.type]=(typeCost[b.type]||0)+parseFloat(b.cost||0); });
   const maxCount = Math.max(...Object.values(typeCount),1);
 
   // Charge entity spend
   const chargeSpend = {};
-  bookings.forEach(b=>{ chargeSpend[b.chargeTo||'Unknown']=(chargeSpend[b.chargeTo||'Unknown']||0)+parseFloat(b.cost||0); });
+  bookings.forEach(b=>{ if(b.status!=='Cancelled'&&b.status!=='Declined') chargeSpend[b.chargeTo||'Unknown']=(chargeSpend[b.chargeTo||'Unknown']||0)+parseFloat(b.cost||0); });
   const chargeEntries = Object.entries(chargeSpend).sort((a,b)=>b[1]-a[1]);
   const maxCharge = Math.max(...chargeEntries.map(e=>e[1]),1);
 
@@ -1437,7 +1444,7 @@ function renderAnalytics(side) {
       <div class="chart-bar-wrap">
         ${STAFF.logistics.map((name,i)=>{
           const cnt = bookings.filter(b=>b.raisedBy===name).length;
-          const spend = bookings.filter(b=>b.raisedBy===name).reduce((s,b)=>s+parseFloat(b.cost||0),0);
+          const spend = bookings.filter(b=>b.raisedBy===name&&b.status!=='Cancelled'&&b.status!=='Declined').reduce((s,b)=>s+parseFloat(b.cost||0),0);
           const maxSt = Math.max(...STAFF.logistics.map(n=>bookings.filter(b=>b.raisedBy===n).length),1);
           return `<div class="chart-bar-row">
             <div class="chart-bar-label">${name}</div>
