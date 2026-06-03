@@ -427,7 +427,7 @@ tr:hover td{background:var(--offwhite);}
 // DATA STORE
 // ═══════════════════════════════════════════════
 const STAFF = {
-  logistics: ['Craig Cameron','Kieran Hughes','Natalia Lewandowska','Kenny Craig'],
+  logistics: ['Craig Cameron','Kieran Hughes','Natalia Lewandowska','Kenny Craig','Workshop Assistants'],
   workshop:  ['Robert Ferguson','David Armit','Stuart Finlayson']
 };
 
@@ -1512,7 +1512,12 @@ function exportCSV() {
 // POWER AUTOMATE EMAIL FUNCTIONS
 // ═══════════════════════════════════════════════
 function nameToEmail(fullName) {
-  // "Craig Cameron" → "craig.cameron@afsgroup.uk"
+  // Custom overrides for non-standard email addresses
+  const overrides = {
+    'Workshop Assistants': 'AFSWorkshopA@afsgroup.uk'
+  };
+  if (overrides[fullName]) return overrides[fullName];
+  // Default: "Craig Cameron" → "craig.cameron@afsgroup.uk"
   return fullName.toLowerCase().replace(/\s+/g, '.') + '@afsgroup.uk';
 }
 
