@@ -1077,7 +1077,7 @@ function renderMyBookings(bookings) {
   return div;
 }
 
-async async function filterMyBookings() {
+async function filterMyBookings() {
   const sf = document.getElementById('mf-status')?.value;
   const tf = document.getElementById('mf-type')?.value;
   const q  = document.getElementById('mf-search')?.value?.toLowerCase();
@@ -1142,7 +1142,7 @@ function renderAllBookings(bookings) {
   return div;
 }
 
-async async function filterAll() {
+async function filterAll() {
   const sf = document.getElementById('af-status')?.value;
   const tf = document.getElementById('af-type')?.value;
   const cf = document.getElementById('af-charge')?.value;
@@ -1286,7 +1286,7 @@ function confirmCancel(ref) {
 
 function closeModal() { document.getElementById('detail-overlay').classList.remove('show'); }
 
-async async function updateBookingStatus(ref, status) {
+async function updateBookingStatus(ref, status) {
   saveWorkshopNotes(ref, false);
   const bookings = getBookings();
   const b = bookings.find(x=>x.ref===ref);
