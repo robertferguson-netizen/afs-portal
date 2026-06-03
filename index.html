@@ -2,6 +2,10 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
+<meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate"/>
+<meta http-equiv="pragma" content="no-cache"/>
+<meta http-equiv="expires" content="0"/>
+<!-- AFS Portal v3.5 -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>AFS Internal Operations Portal</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@300;400;500;600;700;800&family=Barlow+Condensed:wght@600;700;800&display=swap" rel="stylesheet"/>
@@ -952,7 +956,7 @@ function onManualMiles() {
   if (res) { res.className='mileage-result show'; res.innerHTML=`<div><div style="font-weight:700;">Manual entry: ${oneway} miles each way (${calcMiles} miles return)</div></div><div style="font-family:var(--font-display);font-size:24px;font-weight:800;color:var(--accent);">${formatCost(calcCost)}</div>`; }
 }
 
-function submitNewBooking() {
+async function submitNewBooking() {
   if (!activeJobType) { alert('Please select a job type.'); return; }
   const date = document.getElementById('nb-date').value;
   const reg  = document.getElementById('vf-reg')?.value?.trim()?.toUpperCase();
@@ -1073,7 +1077,7 @@ function renderMyBookings(bookings) {
   return div;
 }
 
-async function filterMyBookings() {
+async async function filterMyBookings() {
   const sf = document.getElementById('mf-status')?.value;
   const tf = document.getElementById('mf-type')?.value;
   const q  = document.getElementById('mf-search')?.value?.toLowerCase();
@@ -1138,7 +1142,7 @@ function renderAllBookings(bookings) {
   return div;
 }
 
-async function filterAll() {
+async async function filterAll() {
   const sf = document.getElementById('af-status')?.value;
   const tf = document.getElementById('af-type')?.value;
   const cf = document.getElementById('af-charge')?.value;
@@ -1264,7 +1268,7 @@ function openBookingDetail(ref) {
   document.getElementById('detail-overlay').classList.add('show');
 }
 
-function deleteBooking(ref) {
+async function deleteBooking(ref) {
   if (!confirm(`Permanently delete booking ${ref}?\n\nThis cannot be undone.`)) return;
   await dbDeleteBooking(ref);
   closeModal();
@@ -1282,7 +1286,7 @@ function confirmCancel(ref) {
 
 function closeModal() { document.getElementById('detail-overlay').classList.remove('show'); }
 
-async function updateBookingStatus(ref, status) {
+async async function updateBookingStatus(ref, status) {
   saveWorkshopNotes(ref, false);
   const bookings = getBookings();
   const b = bookings.find(x=>x.ref===ref);
