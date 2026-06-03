@@ -1539,9 +1539,8 @@ async function fireSubmissionEmail(booking) {
     // Use text/plain to avoid CORS preflight — Power Automate receives body as triggerBody()
     await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify(payload),
-      mode: 'no-cors'
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
     });
   } catch(e) { console.warn('Submission email failed:', e); }
 }
@@ -1576,9 +1575,8 @@ async function fireStatusEmail(booking, status) {
   try {
     await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify(payload),
-      mode: 'no-cors'
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
     });
   } catch(e) { console.warn('Status email failed:', e); }
 }
@@ -1684,7 +1682,7 @@ async function testEndpoints() {
   for (const [label, url] of [['Flow 1', submitUrl], ['Flow 2', statusUrl]]) {
     if (!url) { results.push(`${label}: not configured`); continue; }
     try {
-      await fetch(url, { method:'POST', headers:{'Content-Type':'text/plain'}, body:JSON.stringify(testPayload), mode:'no-cors' });
+      await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(testPayload) });
       results.push(`${label}: ✓ Request sent (check your flow run history to confirm receipt)`);
     } catch(e) {
       results.push(`${label}: ✗ Failed — ${e.message}`);
