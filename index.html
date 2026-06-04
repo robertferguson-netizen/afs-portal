@@ -1586,8 +1586,7 @@ function nameToEmail(fullName) {
 
 async function fireSubmissionEmail(booking) {
   const cfg = getCfg();
-  const url = cfg.paSubmitUrl;
-  if (!url) return; // not configured yet
+  const url = cfg.paSubmitUrl || 'https://defaultf4bcffa889564651ac3884050ed2cf.d7.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/ccefba5609bb423898f49d950783100c/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=qqix3M0B2ijRcyzSbwhcSuJcY6dcrkpw-Z_6H72wFiA';
   const payload = {
     eventType: 'NEW_BOOKING',
     toEmail: 'servicing@afsgroup.uk',
@@ -1622,8 +1621,7 @@ async function fireSubmissionEmail(booking) {
 
 async function fireStatusEmail(booking, status) {
   const cfg = getCfg();
-  const url = cfg.paStatusUrl;
-  if (!url) return; // not configured yet
+  const url = cfg.paStatusUrl || 'https://defaultf4bcffa889564651ac3884050ed2cf.d7.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/9b81351b506b4e558a5e44a769bb6b04/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=Lni8UuBlLI7c1PhThzCiPGNQ4j2WuGEJu9qxDdVmzpc';
   const toEmail = nameToEmail(booking.raisedBy);
   const statusMessages = {
     Accepted: `Your booking ${booking.ref} has been accepted by the workshop.`,
